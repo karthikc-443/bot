@@ -1,0 +1,32 @@
+{
+  "name": "devrev-followup-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Slack bot that tracks DevRev tickets tagged in a thread and nags daily until closed + Freshdesk-resolved.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "followup:once": "ts-node src/jobs/dailyFollowup.ts --once",
+    "devrev:inspect": "ts-node src/integrations/devrevInspect.ts",
+    "slack:bootstrap": "ts-node src/integrations/slackBootstrap.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.22.0",
+    "@slack/web-api": "^7.5.0",
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.13",
+    "@types/node": "^22.7.4",
+    "@types/node-cron": "^3.0.11",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

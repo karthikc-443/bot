@@ -1,0 +1,58 @@
+import { WebClient } from "@slack/web-api";
+
+// Constructed without a default token — every call below passes the current
+// token explicitly (see setSlackBotToken/getCurrentToken), since WebClient's
+// own `token` property is read-only after construction.
+export const slackClient = new WebClient();
+
+let currentToken: string | undefined;
+
+export function setSlackBotToken(token: string): void {
+  currentToken = token;
+}
+
+export function getCurrentToken(): string | undefined {
+  return currentToken;
+}
+
+const emailToUserIdCache = new Map<string, string | null>();
+
+export async function lookupUserIdByEmail(email: string): Promise<string | null> {
+  if (emailToUserIdCache.has(email)) {
+    return emailToUserIdCache.get(email)!;
+  }
+  try {
+    const result = await slackClient.users.lookupByEmail({ email, token: currentToken });
+    const userId = result.user?.id ?? null;
+    emailToUserIdCache.set(email, userId);
+    return userId;
+  } catch {
+    emailToUserIdCache.set(email, null);
+    return null;
+  }
+}
+
+export async function getThreadParentText(channel: string, threadTs: string): Promise<string | null> {
+  const result = await slackClient.conversations.replies({
+    channel,
+    ts: threadTs,
+    limit: 1,
+    token: currentToken,
+  });
+  return result.messages?.[0]?.text ?? null;
+}
+
+const DEVREV_LINK_PATTERN = /app\.devrev\.ai\/[^/\s]+\/(?:issue|works)\/([A-Z]+-\d+)/;
+const CREATED_BY_PATTERN = /Created by:\s*<@([A-Z0-9]+)(?:\|[^>]*)?>/;
+
+export function extractDevRevTicketId(parentText: string): string | null {
+  return parentText.match(DEVREV_LINK_PATTERN)?.[1] ?? null;
+}
+
+export function extractCreatorSlackUserId(parentText: string): string | null {
+  return parentText.match(CREATED_BY_PATTERN)?.[1] ?? null;
+}
+
+export async function postInThread(channel: string, threadTs: string, text: string): Promise<void> {
+  await slackClient.chat.postMessage({ channel, thread_ts: threadTs, text, token: currentToken });
+}
