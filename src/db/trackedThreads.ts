@@ -3,9 +3,28 @@ import fs from "fs";
 import path from "path";
 import { config } from "../config";
 
+// Inlined rather than read from schema.sql — tsc doesn't copy non-.ts assets
+// into dist/, so a file-read here works in ts-node dev but 404s after `npm
+// run build` (which is what actually runs in any deployed environment).
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS tracked_threads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slack_channel_id TEXT NOT NULL,
+  slack_thread_ts TEXT NOT NULL,
+  devrev_ticket_id TEXT NOT NULL,
+  freshdesk_ticket_id TEXT,
+  created_by_slack_user_id TEXT NOT NULL,
+  creator_slack_user_id TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  last_followup_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (slack_channel_id, slack_thread_ts)
+);
+`;
+
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
 const db = new DatabaseSync(config.dbPath);
-db.exec(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
+db.exec(SCHEMA);
 
 export type ThreadStatus = "active" | "stopped";
 
