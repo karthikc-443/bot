@@ -42,14 +42,22 @@ export async function getThreadParentText(channel: string, threadTs: string): Pr
   return result.messages?.[0]?.text ?? null;
 }
 
-export async function getFullThreadText(channel: string, threadTs: string): Promise<string> {
+export interface ThreadContext {
+  text: string;
+  lastMessageAt: Date | null;
+}
+
+export async function getThreadContext(channel: string, threadTs: string): Promise<ThreadContext> {
   const result = await slackClient.conversations.replies({
     channel,
     ts: threadTs,
     limit: 200,
     token: currentToken,
   });
-  return (result.messages ?? []).map((m) => m.text ?? "").join("\n---\n");
+  const messages = result.messages ?? [];
+  const text = messages.map((m) => m.text ?? "").join("\n---\n");
+  const lastTs = messages.map((m) => Number(m.ts)).filter((n) => !Number.isNaN(n)).at(-1);
+  return { text, lastMessageAt: lastTs ? new Date(lastTs * 1000) : null };
 }
 
 const DEVREV_LINK_PATTERN = /app\.devrev\.ai\/[^/\s]+\/(?:issue|works)\/([A-Z]+-\d+)/;

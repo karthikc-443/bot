@@ -33,7 +33,10 @@ export const config = {
     domain: required("FRESHDESK_DOMAIN"),
     apiKey: required("FRESHDESK_API_KEY"),
   },
-  followupCron: process.env.FOLLOWUP_CRON ?? "0 10 * * 1-5",
+  // Runs hourly by default — the job itself only actually nags a thread once
+  // an 8h silence window has elapsed (see shouldNag in dailyFollowup.ts), so
+  // this just needs to be frequent enough to catch that threshold promptly.
+  followupCron: process.env.FOLLOWUP_CRON ?? "0 * * * *",
   dbPath: process.env.DB_PATH ?? "./data/tracked_threads.db",
   // Optional — analysis is skipped (falls back to the plain DevRev assignee)
   // when this isn't set, so the bot works with or without it.

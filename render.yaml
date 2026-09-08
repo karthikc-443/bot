@@ -31,7 +31,7 @@ services:
       - key: FRESHDESK_API_KEY
         sync: false
       - key: FOLLOWUP_CRON
-        value: "0 10 * * 1-5"
+        value: "0 * * * *"
       - key: DB_PATH
         value: /data/tracked_threads.db
       - key: SLACK_TOKEN_STORE_PATH

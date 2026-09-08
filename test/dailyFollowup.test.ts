@@ -1,4 +1,4 @@
-import { decide, pickBlockerEmail } from "../src/jobs/dailyFollowup";
+import { decide, pickBlockerEmail, shouldNag } from "../src/jobs/dailyFollowup";
 import { DevRevWork } from "../src/integrations/devrev";
 import { FreshdeskConversation } from "../src/integrations/freshdesk";
 import { BlockerAnalysis } from "../src/integrations/claude";
@@ -71,5 +71,37 @@ describe("pickBlockerEmail", () => {
 
   it("falls back to the DevRev assignee when analysis is disabled/unavailable", () => {
     expect(pickBlockerEmail(work(false), null)).toBe("owner@example.com");
+  });
+});
+
+describe("shouldNag", () => {
+  const now = new Date("2026-01-01T12:00:00Z");
+
+  it("does not nag when the last response was under 8h ago", () => {
+    const lastResponseAt = new Date("2026-01-01T06:00:00Z"); // 6h ago
+    expect(shouldNag(now, lastResponseAt, null)).toBe(false);
+  });
+
+  it("nags once 8h have passed since the last response", () => {
+    const lastResponseAt = new Date("2026-01-01T04:00:00Z"); // 8h ago exactly
+    expect(shouldNag(now, lastResponseAt, null)).toBe(true);
+  });
+
+  it("does not re-nag within 8h of our own last nag, even if the response is older", () => {
+    const lastResponseAt = new Date("2026-01-01T00:00:00Z"); // 12h ago
+    const lastFollowupAt = new Date("2026-01-01T10:00:00Z"); // we nagged 2h ago
+    expect(shouldNag(now, lastResponseAt, lastFollowupAt)).toBe(false);
+  });
+
+  it("nags again once 8h have passed since our own last nag", () => {
+    const lastResponseAt = new Date("2025-12-31T12:00:00Z"); // 24h ago
+    const lastFollowupAt = new Date("2026-01-01T04:00:00Z"); // our last nag, 8h ago
+    expect(shouldNag(now, lastResponseAt, lastFollowupAt)).toBe(true);
+  });
+
+  it("resets the clock on a response that's newer than our last nag", () => {
+    const lastFollowupAt = new Date("2026-01-01T03:00:00Z"); // 9h ago — would nag alone
+    const lastResponseAt = new Date("2026-01-01T11:00:00Z"); // but someone replied 1h ago
+    expect(shouldNag(now, lastResponseAt, lastFollowupAt)).toBe(false);
   });
 });

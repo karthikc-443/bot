@@ -9,10 +9,10 @@ async function main() {
   console.log("⚡️ devrev-followup-bot connected via Socket Mode");
 
   cron.schedule(config.followupCron, () => {
-    console.log("Running daily followup job...");
-    runDailyFollowup().catch((err) => console.error("Daily followup job failed", err));
+    console.log("Running followup check...");
+    runDailyFollowup().catch((err) => console.error("Followup check failed", err));
   });
-  console.log(`Daily followup job scheduled: ${config.followupCron}`);
+  console.log(`Followup check scheduled: ${config.followupCron} (nags after 8h of silence)`);
 }
 
 main().catch((err) => {

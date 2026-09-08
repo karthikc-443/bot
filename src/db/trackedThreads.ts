@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS tracked_threads (
   creator_slack_user_id TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   last_followup_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   UNIQUE (slack_channel_id, slack_thread_ts)
 );
 `;
@@ -95,5 +95,7 @@ export function markStopped(id: number): void {
 }
 
 export function updateLastFollowupAt(id: number): void {
-  db.prepare(`UPDATE tracked_threads SET last_followup_at = datetime('now') WHERE id = ?`).run(id);
+  db.prepare(
+    `UPDATE tracked_threads SET last_followup_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?`
+  ).run(id);
 }
