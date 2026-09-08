@@ -11,9 +11,11 @@
     "followup:once": "ts-node src/jobs/dailyFollowup.ts --once",
     "devrev:inspect": "ts-node src/integrations/devrevInspect.ts",
     "slack:bootstrap": "ts-node src/integrations/slackBootstrap.ts",
+    "slack:bootstrap:local": "ts-node src/integrations/slackLocalBootstrap.ts",
     "test": "jest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
     "@slack/bolt": "^3.22.0",
     "@slack/web-api": "^7.5.0",
     "axios": "^1.7.7",

@@ -42,8 +42,20 @@ export async function getThreadParentText(channel: string, threadTs: string): Pr
   return result.messages?.[0]?.text ?? null;
 }
 
+export async function getFullThreadText(channel: string, threadTs: string): Promise<string> {
+  const result = await slackClient.conversations.replies({
+    channel,
+    ts: threadTs,
+    limit: 200,
+    token: currentToken,
+  });
+  return (result.messages ?? []).map((m) => m.text ?? "").join("\n---\n");
+}
+
 const DEVREV_LINK_PATTERN = /app\.devrev\.ai\/[^/\s]+\/(?:issue|works)\/([A-Z]+-\d+)/;
-const CREATED_BY_PATTERN = /Created by:\s*<@([A-Z0-9]+)(?:\|[^>]*)?>/;
+// The card renders as "*Created by:* <@U...>" — the closing bold marker (*)
+// sits between the colon and the mention, so allow an optional "*" there too.
+const CREATED_BY_PATTERN = /Created by:\*?\s*<@([A-Z0-9]+)(?:\|[^>]*)?>/;
 
 export function extractDevRevTicketId(parentText: string): string | null {
   return parentText.match(DEVREV_LINK_PATTERN)?.[1] ?? null;

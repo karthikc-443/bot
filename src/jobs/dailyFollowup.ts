@@ -1,7 +1,8 @@
-import { DevRevWork, getWork, isClosed } from "../integrations/devrev";
+import { DevRevWork, getWork, isClosed, listComments } from "../integrations/devrev";
 import { FreshdeskConversation, getConversations, isResolvedForMerchant } from "../integrations/freshdesk";
-import { lookupUserIdByEmail, postInThread } from "../integrations/slack";
+import { lookupUserIdByEmail, postInThread, getFullThreadText } from "../integrations/slack";
 import { ensureSlackToken } from "../integrations/slackAuth";
+import { analyzeBlocker, BlockerAnalysis, isEnabled as claudeEnabled } from "../integrations/claude";
 import { listActive, markStopped, updateLastFollowupAt, TrackedThread } from "../db/trackedThreads";
 
 export type FollowupDecision =
@@ -17,6 +18,12 @@ export function decide(work: DevRevWork, conversations: FreshdeskConversation[] 
     return { action: "resolved" };
   }
   return { action: "nag", waitingOnMerchantReply: closed && !merchantResolved };
+}
+
+// Prefer Claude's read on who's actually blocking progress right now; fall
+// back to the plain DevRev assignee if analysis is off, failed, or unsure.
+export function pickBlockerEmail(work: DevRevWork, analysis: BlockerAnalysis | null): string | null {
+  return analysis?.blockerEmail ?? work.ownerEmail;
 }
 
 async function processThread(thread: TrackedThread): Promise<void> {
@@ -40,17 +47,27 @@ async function processThread(thread: TrackedThread): Promise<void> {
     return;
   }
 
-  const assigneeSlackId = work.ownerEmail ? await lookupUserIdByEmail(work.ownerEmail) : null;
-  const mention = assigneeSlackId ? `<@${assigneeSlackId}>` : work.ownerEmail ?? "unassigned";
-  const statusLine = `${work.displayId} is *${work.stageName ?? "open"}*`;
+  let analysis: BlockerAnalysis | null = null;
+  if (claudeEnabled()) {
+    const [comments, slackThreadText] = await Promise.all([
+      listComments(work.id),
+      getFullThreadText(thread.slackChannelId, thread.slackThreadTs),
+    ]);
+    analysis = await analyzeBlocker({ ticketTitle: work.title, devrevComments: comments, slackThreadText });
+  }
+
+  const blockerEmail = pickBlockerEmail(work, analysis);
+  const blockerSlackId = blockerEmail ? await lookupUserIdByEmail(blockerEmail) : null;
+  const mention = blockerSlackId ? `<@${blockerSlackId}>` : blockerEmail ?? "unassigned";
+  const statusLine = analysis?.summary ?? `${work.displayId} is *${work.stageName ?? "open"}*`;
   const merchantLine = decision.waitingOnMerchantReply
-    ? " — customer is still waiting on a Freshdesk reply."
+    ? " Customer is still waiting on a Freshdesk reply."
     : "";
 
   await postInThread(
     thread.slackChannelId,
     thread.slackThreadTs,
-    `${mention} daily check-in: ${statusLine}.${merchantLine} Any update?`
+    `${mention} daily check-in: ${statusLine}${merchantLine} Any update?`
   );
   updateLastFollowupAt(thread.id);
 }

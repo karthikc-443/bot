@@ -1,6 +1,7 @@
-import { decide } from "../src/jobs/dailyFollowup";
+import { decide, pickBlockerEmail } from "../src/jobs/dailyFollowup";
 import { DevRevWork } from "../src/integrations/devrev";
 import { FreshdeskConversation } from "../src/integrations/freshdesk";
+import { BlockerAnalysis } from "../src/integrations/claude";
 
 function work(stateIsFinal: boolean, stageName = "Open"): DevRevWork {
   return {
@@ -52,5 +53,23 @@ describe("decide", () => {
       action: "nag",
       waitingOnMerchantReply: false,
     });
+  });
+});
+
+describe("pickBlockerEmail", () => {
+  function analysis(blockerEmail: string | null): BlockerAnalysis {
+    return { blockerEmail, summary: "test summary" };
+  }
+
+  it("prefers Claude's identified blocker over the plain DevRev assignee", () => {
+    expect(pickBlockerEmail(work(false), analysis("blocker@example.com"))).toBe("blocker@example.com");
+  });
+
+  it("falls back to the DevRev assignee when analysis found no confident blocker", () => {
+    expect(pickBlockerEmail(work(false), analysis(null))).toBe("owner@example.com");
+  });
+
+  it("falls back to the DevRev assignee when analysis is disabled/unavailable", () => {
+    expect(pickBlockerEmail(work(false), null)).toBe("owner@example.com");
   });
 });

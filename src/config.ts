@@ -35,4 +35,10 @@ export const config = {
   },
   followupCron: process.env.FOLLOWUP_CRON ?? "0 10 * * 1-5",
   dbPath: process.env.DB_PATH ?? "./data/tracked_threads.db",
+  // Optional — analysis is skipped (falls back to the plain DevRev assignee)
+  // when this isn't set, so the bot works with or without it.
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    model: process.env.ANTHROPIC_MODEL ?? "claude-haiku-4-5-20251001",
+  },
 };

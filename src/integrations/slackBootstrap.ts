@@ -10,7 +10,7 @@ async function main() {
 
   const codeMatch = input.match(/[?&]code=([^&]+)/);
   const code = codeMatch ? decodeURIComponent(codeMatch[1]) : input;
-  const redirectUri = "https://ngrok-free.app/slack/oauth_redirect";
+  const redirectUri = "https://example.com/slack/oauth_redirect";
 
   await bootstrapFromAuthorizationCode(code, redirectUri);
   console.log("Bootstrapped Slack tokens successfully — stored at DB_PATH's sibling token store.");

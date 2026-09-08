@@ -58,3 +58,23 @@ export async function getWork(displayId: string): Promise<DevRevWork | null> {
 export function isClosed(work: DevRevWork): boolean {
   return work.stateIsFinal;
 }
+
+export interface TimelineComment {
+  body: string;
+  authorName: string;
+  authorEmail: string | null;
+  createdAt: string;
+}
+
+export async function listComments(workId: string): Promise<TimelineComment[]> {
+  const { data } = await client.post("/timeline-entries.list", { object: workId });
+  const entries = (data?.timeline_entries as any[]) ?? [];
+  return entries
+    .filter((e) => e.type === "timeline_comment" && typeof e.body === "string")
+    .map((e) => ({
+      body: e.body,
+      authorName: e.created_by?.display_name ?? e.created_by?.full_name ?? "unknown",
+      authorEmail: e.created_by?.email ?? null,
+      createdAt: e.created_date,
+    }));
+}

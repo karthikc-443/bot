@@ -26,17 +26,21 @@ function writeStore(store: TokenStore): void {
 // One-time bootstrap: exchange a fresh "code" from the OAuth authorize
 // redirect for the first real access/refresh token pair. Only needed once
 // per app install — after this, refreshAndPersist() takes over.
-export async function bootstrapFromAuthorizationCode(code: string, redirectUri: string): Promise<void> {
-  const { data } = await axios.post(
-    "https://slack.com/api/oauth.v2.access",
-    new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: redirectUri,
-      client_id: config.slack.clientId!,
-      client_secret: config.slack.clientSecret!,
-    })
-  );
+export async function bootstrapFromAuthorizationCode(
+  code: string,
+  redirectUri: string,
+  codeVerifier?: string
+): Promise<void> {
+  const params: Record<string, string> = {
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: redirectUri,
+    client_id: config.slack.clientId!,
+    client_secret: config.slack.clientSecret!,
+  };
+  if (codeVerifier) params.code_verifier = codeVerifier;
+
+  const { data } = await axios.post("https://slack.com/api/oauth.v2.access", new URLSearchParams(params));
   if (!data.ok) {
     throw new Error(`Slack authorization code exchange failed: ${data.error}`);
   }
