@@ -81,6 +81,26 @@ Once it's running and connected (you'll see "⚡️ devrev-followup-bot connecte
 Socket Mode" in the logs), go to a Slack thread that has a DevRev ticket auto-posted
 in it and reply `@YourBotName`. It should reply confirming what it's tracking.
 
+## Deploying to Render
+
+`render.yaml` in this repo defines the service as a Background Worker with a
+1GB persistent disk mounted at `/data` (needed — otherwise `tracked_threads.db`
+and the rotated Slack token get wiped on every deploy).
+
+1. Push this repo to GitHub (already done if you're reading this from there).
+2. On Render: **New** -> **Blueprint** -> connect this repo. It reads `render.yaml`
+   and provisions the worker + disk automatically.
+3. Render will prompt for the env vars marked `sync: false` in `render.yaml`
+   (Slack/DevRev/Freshdesk/Anthropic secrets) — paste in the same values from
+   your local `.env`, **except** `SLACK_REFRESH_TOKEN`: use the *current* value
+   from your local `data/slack_token.json` (the one already used in `.env` was
+   consumed during the original bootstrap and has since rotated).
+4. Deploy. First boot exchanges that refresh token once, then persists the
+   rotated one to the disk at `/data/slack_token.json` for every boot after.
+
+Requires Render's Starter plan or above — the free tier doesn't support
+Background Workers with persistent disks.
+
 ## Moving this to another machine
 
 Copy the project folder, `npm install` there, copy over the same `.env` **and** the

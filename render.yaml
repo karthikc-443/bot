@@ -1,0 +1,42 @@
+services:
+  - type: worker
+    name: devrev-followup-bot
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SLACK_APP_TOKEN
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: SLACK_REFRESH_TOKEN
+        sync: false
+      - key: DEVREV_API_TOKEN
+        sync: false
+      - key: DEVREV_API_BASE_URL
+        value: https://api.devrev.ai
+      - key: DEVREV_FRESHDESK_FIELD_KEY
+        value: ctype__fd_id
+      - key: FRESHDESK_DOMAIN
+        sync: false
+      - key: FRESHDESK_API_KEY
+        sync: false
+      - key: FOLLOWUP_CRON
+        value: "0 10 * * 1-5"
+      - key: DB_PATH
+        value: /data/tracked_threads.db
+      - key: SLACK_TOKEN_STORE_PATH
+        value: /data/slack_token.json
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-4-6
