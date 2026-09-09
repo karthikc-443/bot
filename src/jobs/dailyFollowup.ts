@@ -11,7 +11,10 @@ import { ensureSlackToken } from "../integrations/slackAuth";
 import { analyzeBlocker, BlockerAnalysis, isEnabled as claudeEnabled } from "../integrations/claude";
 import { listActive, markStopped, updateLastFollowupAt, TrackedThread } from "../db/trackedThreads";
 
-const SILENCE_HOURS_BEFORE_NAG = 8;
+const SILENCE_HOURS_BEFORE_NAG_BLOCKER = 8;
+// Pending-on-PSE means DevRev's already closed but the merchant hasn't
+// actually heard back — tighter cadence since it's a customer-facing gap.
+const SILENCE_HOURS_BEFORE_NAG_CREATOR = 1;
 
 export type FollowupDecision =
   | { action: "resolved" }
@@ -54,13 +57,18 @@ function hoursBetween(earlier: Date, later: Date): number {
   return (later.getTime() - earlier.getTime()) / (1000 * 60 * 60);
 }
 
-// Nags at most once per SILENCE_HOURS_BEFORE_NAG window of quiet — the clock
-// resets on either a real response (Slack/DevRev activity) or our own last
-// nag, whichever is more recent, so an active thread doesn't get spammed on
+// Nags at most once per thresholdHours window of quiet — the clock resets
+// on either a real response (Slack/DevRev activity) or our own last nag,
+// whichever is more recent, so an active thread doesn't get spammed on
 // every run once past the threshold.
-export function shouldNag(now: Date, lastResponseAt: Date, lastFollowupAt: Date | null): boolean {
+export function shouldNag(
+  now: Date,
+  lastResponseAt: Date,
+  lastFollowupAt: Date | null,
+  thresholdHours: number
+): boolean {
   const silenceStart = lastFollowupAt && lastFollowupAt > lastResponseAt ? lastFollowupAt : lastResponseAt;
-  return hoursBetween(silenceStart, now) >= SILENCE_HOURS_BEFORE_NAG;
+  return hoursBetween(silenceStart, now) >= thresholdHours;
 }
 
 function latestOf(...dates: (Date | null)[]): Date {
@@ -97,8 +105,10 @@ async function processThread(thread: TrackedThread): Promise<void> {
   const lastCommentAt = comments.length ? new Date(comments[comments.length - 1].createdAt) : null;
   const lastResponseAt = latestOf(lastCommentAt, threadContext.lastMessageAt, new Date(thread.createdAt));
   const lastFollowupAt = thread.lastFollowupAt ? new Date(thread.lastFollowupAt) : null;
+  const thresholdHours =
+    decision.action === "nag_creator" ? SILENCE_HOURS_BEFORE_NAG_CREATOR : SILENCE_HOURS_BEFORE_NAG_BLOCKER;
 
-  if (!shouldNag(new Date(), lastResponseAt, lastFollowupAt)) {
+  if (!shouldNag(new Date(), lastResponseAt, lastFollowupAt, thresholdHours)) {
     return;
   }
 

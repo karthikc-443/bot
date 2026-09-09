@@ -93,31 +93,37 @@ describe("pickBlockerEmail", () => {
 describe("shouldNag", () => {
   const now = new Date("2026-01-01T12:00:00Z");
 
-  it("does not nag when the last response was under 8h ago", () => {
+  it("does not nag when the last response was under the threshold ago", () => {
     const lastResponseAt = new Date("2026-01-01T06:00:00Z"); // 6h ago
-    expect(shouldNag(now, lastResponseAt, null)).toBe(false);
+    expect(shouldNag(now, lastResponseAt, null, 8)).toBe(false);
   });
 
-  it("nags once 8h have passed since the last response", () => {
+  it("nags once the threshold has passed since the last response", () => {
     const lastResponseAt = new Date("2026-01-01T04:00:00Z"); // 8h ago exactly
-    expect(shouldNag(now, lastResponseAt, null)).toBe(true);
+    expect(shouldNag(now, lastResponseAt, null, 8)).toBe(true);
   });
 
-  it("does not re-nag within 8h of our own last nag, even if the response is older", () => {
+  it("does not re-nag within the threshold of our own last nag, even if the response is older", () => {
     const lastResponseAt = new Date("2026-01-01T00:00:00Z"); // 12h ago
     const lastFollowupAt = new Date("2026-01-01T10:00:00Z"); // we nagged 2h ago
-    expect(shouldNag(now, lastResponseAt, lastFollowupAt)).toBe(false);
+    expect(shouldNag(now, lastResponseAt, lastFollowupAt, 8)).toBe(false);
   });
 
-  it("nags again once 8h have passed since our own last nag", () => {
+  it("nags again once the threshold has passed since our own last nag", () => {
     const lastResponseAt = new Date("2025-12-31T12:00:00Z"); // 24h ago
     const lastFollowupAt = new Date("2026-01-01T04:00:00Z"); // our last nag, 8h ago
-    expect(shouldNag(now, lastResponseAt, lastFollowupAt)).toBe(true);
+    expect(shouldNag(now, lastResponseAt, lastFollowupAt, 8)).toBe(true);
   });
 
   it("resets the clock on a response that's newer than our last nag", () => {
     const lastFollowupAt = new Date("2026-01-01T03:00:00Z"); // 9h ago — would nag alone
     const lastResponseAt = new Date("2026-01-01T11:00:00Z"); // but someone replied 1h ago
-    expect(shouldNag(now, lastResponseAt, lastFollowupAt)).toBe(false);
+    expect(shouldNag(now, lastResponseAt, lastFollowupAt, 8)).toBe(false);
+  });
+
+  it("supports a tighter threshold, e.g. the 1h creator-nag cadence", () => {
+    const lastResponseAt = new Date("2026-01-01T10:30:00Z"); // 1.5h ago
+    expect(shouldNag(now, lastResponseAt, null, 1)).toBe(true);
+    expect(shouldNag(now, new Date("2026-01-01T11:30:00Z"), null, 1)).toBe(false); // 30m ago
   });
 });
