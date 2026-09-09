@@ -11,6 +11,7 @@ function work(stateIsFinal: boolean, stageName = "Open"): DevRevWork {
     stageName,
     stateIsFinal,
     ownerEmail: "owner@example.com",
+    creatorEmail: "creator@example.com",
     freshdeskTicketId: "55",
     raw: {},
   };
@@ -87,6 +88,14 @@ describe("pickBlockerEmail", () => {
 
   it("falls back to the DevRev assignee when analysis is disabled/unavailable", () => {
     expect(pickBlockerEmail(work(false), null)).toBe("owner@example.com");
+  });
+
+  it("never picks the creator, even if analysis mistakenly names them", () => {
+    expect(pickBlockerEmail(work(false), analysis("creator@example.com"))).toBe("owner@example.com");
+  });
+
+  it("is case-insensitive when guarding against the creator", () => {
+    expect(pickBlockerEmail(work(false), analysis("Creator@Example.com"))).toBe("owner@example.com");
   });
 });
 

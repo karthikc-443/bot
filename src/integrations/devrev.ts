@@ -17,6 +17,7 @@ export interface DevRevWork {
   stageName: string | null;
   stateIsFinal: boolean;
   ownerEmail: string | null;
+  creatorEmail: string | null;
   freshdeskTicketId: string | null;
   raw: unknown;
 }
@@ -50,6 +51,7 @@ export async function getWork(displayId: string): Promise<DevRevWork | null> {
     // more reliable than pattern-matching stage names, which vary per ticket type.
     stateIsFinal: Boolean(raw.stage?.state?.is_final),
     ownerEmail: extractOwnerEmail(raw),
+    creatorEmail: raw.created_by?.email ?? null,
     freshdeskTicketId: extractFreshdeskId(raw),
     raw,
   };

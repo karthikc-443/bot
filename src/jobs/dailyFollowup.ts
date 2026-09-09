@@ -11,7 +11,8 @@ import { ensureSlackToken } from "../integrations/slackAuth";
 import { analyzeBlocker, BlockerAnalysis, isEnabled as claudeEnabled } from "../integrations/claude";
 import { listActive, markStopped, updateLastFollowupAt, TrackedThread } from "../db/trackedThreads";
 
-const SILENCE_HOURS_BEFORE_NAG_BLOCKER = 8;
+// TEMP for testing — was 8. Revert once done.
+const SILENCE_HOURS_BEFORE_NAG_BLOCKER = 0.5;
 // Pending-on-PSE means DevRev's already closed but the merchant hasn't
 // actually heard back — tighter cadence since it's a customer-facing gap.
 const SILENCE_HOURS_BEFORE_NAG_CREATOR = 1;
@@ -49,8 +50,14 @@ export function decide(
 
 // Prefer Claude's read on who's actually blocking progress right now; fall
 // back to the plain DevRev assignee if analysis is off, failed, or unsure.
+// Defensive guard: the creator is never the blocker (they're the one
+// waiting) — if the analysis picks them anyway, fall back to the assignee.
 export function pickBlockerEmail(work: DevRevWork, analysis: BlockerAnalysis | null): string | null {
-  return analysis?.blockerEmail ?? work.ownerEmail;
+  const candidate = analysis?.blockerEmail ?? work.ownerEmail;
+  if (candidate && work.creatorEmail && candidate.toLowerCase() === work.creatorEmail.toLowerCase()) {
+    return work.ownerEmail;
+  }
+  return candidate;
 }
 
 function hoursBetween(earlier: Date, later: Date): number {
@@ -129,6 +136,7 @@ async function processThread(thread: TrackedThread): Promise<void> {
       ticketTitle: work.title,
       devrevComments: comments,
       slackThreadText: threadContext.text,
+      creatorEmail: work.creatorEmail,
     });
   }
 

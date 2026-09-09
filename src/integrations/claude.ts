@@ -37,6 +37,7 @@ export async function analyzeBlocker(input: {
   ticketTitle: string;
   devrevComments: TimelineComment[];
   slackThreadText: string;
+  creatorEmail: string | null;
 }): Promise<BlockerAnalysis | null> {
   if (!anthropic) return null;
 
@@ -45,6 +46,7 @@ export async function analyzeBlocker(input: {
     .join("\n\n");
 
   const prompt = `Ticket: ${input.ticketTitle}
+${input.creatorEmail ? `Ticket creator/reporter (never the blocker — they're the one waiting): ${input.creatorEmail}` : ""}
 
 DevRev comments (chronological):
 ${commentsText || "(none)"}
@@ -52,7 +54,14 @@ ${commentsText || "(none)"}
 Slack thread:
 ${input.slackThreadText || "(none)"}
 
-Based on the most recent activity, who is this ticket currently blocked on — i.e. who does the next action belong to right now? Use report_blocker_analysis to answer.`;
+Who is this ticket currently blocked on — i.e. whose action is the next thing that needs to happen?
+
+Rules for reading the most recent activity:
+- Someone *asking* for a status update ("any update?", "when can this be fixed?") is never the blocker — they're the one waiting on someone else, usually whoever they addressed the question to.
+- Someone stating a commitment or next step ("I will...", "I'll check...", "will raise a...") IS the blocker — the action is now on them until they follow through.
+- The ticket creator/reporter is never the blocker.
+
+Use report_blocker_analysis to answer.`;
 
   try {
     const response = await anthropic.messages.create({

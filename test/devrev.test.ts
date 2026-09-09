@@ -8,6 +8,7 @@ function work(stateIsFinal: boolean, stageName: string | null = null): DevRevWor
     stageName,
     stateIsFinal,
     ownerEmail: null,
+    creatorEmail: null,
     freshdeskTicketId: null,
     raw: {},
   };
