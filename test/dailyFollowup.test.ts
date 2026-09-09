@@ -20,37 +20,53 @@ function agentReplied(fromAgent: boolean): FreshdeskConversation[] {
   return [{ id: 1, createdAt: "2026-01-01T00:00:00Z", fromAgent }];
 }
 
+const PENDING_ON_PSE = 24;
+const CLOSED_STATUS = 5;
+
 describe("decide", () => {
-  it("nags while DevRev ticket is open, regardless of Freshdesk state", () => {
-    expect(decide(work(false, "Under Investigation"), agentReplied(true))).toEqual({
-      action: "nag",
+  it("nags the blocker while DevRev ticket is open, regardless of Freshdesk state", () => {
+    expect(decide(work(false, "Under Investigation"), agentReplied(true), CLOSED_STATUS)).toEqual({
+      action: "nag_blocker",
       waitingOnMerchantReply: false,
     });
   });
 
-  it("nags and flags merchant-waiting when closed in DevRev but customer has the last Freshdesk word", () => {
-    expect(decide(work(true, "Closed"), agentReplied(false))).toEqual({
-      action: "nag",
+  it("nags the blocker and flags merchant-waiting when closed in DevRev but customer has the last Freshdesk word", () => {
+    expect(decide(work(true, "Closed"), agentReplied(false), CLOSED_STATUS)).toEqual({
+      action: "nag_blocker",
       waitingOnMerchantReply: true,
     });
   });
 
   it("resolves only when closed in DevRev AND agent replied last on Freshdesk", () => {
-    expect(decide(work(true, "Closed"), agentReplied(true))).toEqual({ action: "resolved" });
+    expect(decide(work(true, "Closed"), agentReplied(true), CLOSED_STATUS)).toEqual({ action: "resolved" });
   });
 
   it("gates on DevRev status alone when there's no linked Freshdesk ticket", () => {
-    expect(decide(work(true, "Closed"), null)).toEqual({ action: "resolved" });
-    expect(decide(work(false, "Under Investigation"), null)).toEqual({
-      action: "nag",
+    expect(decide(work(true, "Closed"), null, null)).toEqual({ action: "resolved" });
+    expect(decide(work(false, "Under Investigation"), null, null)).toEqual({
+      action: "nag_blocker",
       waitingOnMerchantReply: false,
     });
   });
 
-  it("keeps nagging after a reopen even though it was previously closed", () => {
+  it("keeps nagging the blocker after a reopen even though it was previously closed", () => {
     // Simulates: ticket closed once, then reopened — stage.state.is_final flips back to false.
-    expect(decide(work(false, "Triage"), agentReplied(true))).toEqual({
-      action: "nag",
+    expect(decide(work(false, "Triage"), agentReplied(true), CLOSED_STATUS)).toEqual({
+      action: "nag_blocker",
+      waitingOnMerchantReply: false,
+    });
+  });
+
+  it("nags the creator when DevRev is closed but Freshdesk is Pending on PSE, even if the last reply was from an agent", () => {
+    expect(decide(work(true, "Closed"), agentReplied(true), PENDING_ON_PSE)).toEqual({
+      action: "nag_creator",
+    });
+  });
+
+  it("does not check Pending on PSE while DevRev is still open", () => {
+    expect(decide(work(false, "Triage"), agentReplied(true), PENDING_ON_PSE)).toEqual({
+      action: "nag_blocker",
       waitingOnMerchantReply: false,
     });
   });

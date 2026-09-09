@@ -1,5 +1,11 @@
 import { DevRevWork, getWork, isClosed, listComments } from "../integrations/devrev";
-import { FreshdeskConversation, getConversations, isResolvedForMerchant } from "../integrations/freshdesk";
+import {
+  FreshdeskConversation,
+  getConversations,
+  getTicketStatus,
+  isPendingOnPse,
+  isResolvedForMerchant,
+} from "../integrations/freshdesk";
 import { lookupUserIdByEmail, postInThread, getThreadContext } from "../integrations/slack";
 import { ensureSlackToken } from "../integrations/slackAuth";
 import { analyzeBlocker, BlockerAnalysis, isEnabled as claudeEnabled } from "../integrations/claude";
@@ -9,17 +15,33 @@ const SILENCE_HOURS_BEFORE_NAG = 8;
 
 export type FollowupDecision =
   | { action: "resolved" }
-  | { action: "nag"; waitingOnMerchantReply: boolean };
+  // DevRev closed, but Freshdesk shows the merchant-facing ticket is still
+  // "Pending on PSE" — DevRev's done, but our side hasn't actually closed
+  // the loop with the merchant. Goes to the creator, not the blocker.
+  | { action: "nag_creator" }
+  | { action: "nag_blocker"; waitingOnMerchantReply: boolean };
 
 // Pure decision logic — kept separate from I/O so it's directly unit-testable.
-export function decide(work: DevRevWork, conversations: FreshdeskConversation[] | null): FollowupDecision {
+export function decide(
+  work: DevRevWork,
+  conversations: FreshdeskConversation[] | null,
+  freshdeskStatus: number | null
+): FollowupDecision {
   const closed = isClosed(work);
-  const merchantResolved = conversations === null ? true : isResolvedForMerchant(conversations);
 
-  if (closed && merchantResolved) {
+  if (!closed) {
+    return { action: "nag_blocker", waitingOnMerchantReply: false };
+  }
+
+  if (freshdeskStatus !== null && isPendingOnPse(freshdeskStatus)) {
+    return { action: "nag_creator" };
+  }
+
+  const merchantResolved = conversations === null ? true : isResolvedForMerchant(conversations);
+  if (merchantResolved) {
     return { action: "resolved" };
   }
-  return { action: "nag", waitingOnMerchantReply: closed && !merchantResolved };
+  return { action: "nag_blocker", waitingOnMerchantReply: true };
 }
 
 // Prefer Claude's read on who's actually blocking progress right now; fall
@@ -50,11 +72,11 @@ async function processThread(thread: TrackedThread): Promise<void> {
   const work = await getWork(thread.devrevTicketId);
   if (!work) return;
 
-  const conversations = thread.freshdeskTicketId
-    ? await getConversations(thread.freshdeskTicketId)
-    : null;
+  const [conversations, freshdeskStatus] = thread.freshdeskTicketId
+    ? await Promise.all([getConversations(thread.freshdeskTicketId), getTicketStatus(thread.freshdeskTicketId)])
+    : [null, null];
 
-  const decision = decide(work, conversations);
+  const decision = decide(work, conversations, freshdeskStatus);
 
   if (decision.action === "resolved") {
     markStopped(thread.id);
@@ -77,6 +99,17 @@ async function processThread(thread: TrackedThread): Promise<void> {
   const lastFollowupAt = thread.lastFollowupAt ? new Date(thread.lastFollowupAt) : null;
 
   if (!shouldNag(new Date(), lastResponseAt, lastFollowupAt)) {
+    return;
+  }
+
+  if (decision.action === "nag_creator") {
+    const mention = thread.creatorSlackUserId ? `<@${thread.creatorSlackUserId}>` : "the ticket creator";
+    await postInThread(
+      thread.slackChannelId,
+      thread.slackThreadTs,
+      `${mention} check-in: *${work.displayId}* is closed in DevRev, but Freshdesk still shows it *Pending on PSE* — the merchant hasn't actually been closed out yet. Can you follow up on Freshdesk?`
+    );
+    updateLastFollowupAt(thread.id);
     return;
   }
 

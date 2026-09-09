@@ -12,6 +12,19 @@ export interface FreshdeskConversation {
   fromAgent: boolean;
 }
 
+// Confirmed via GET /ticket_fields against this org's status choices —
+// status 24's label is literally "Pending on PSE".
+const PENDING_ON_PSE_STATUS = 24;
+
+export async function getTicketStatus(ticketId: string): Promise<number> {
+  const { data } = await client.get(`/tickets/${ticketId}`);
+  return data.status;
+}
+
+export function isPendingOnPse(status: number): boolean {
+  return status === PENDING_ON_PSE_STATUS;
+}
+
 export async function getConversations(ticketId: string): Promise<FreshdeskConversation[]> {
   const { data } = await client.get(`/tickets/${ticketId}/conversations`);
   return (data as any[]).map((c) => ({
