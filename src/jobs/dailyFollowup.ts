@@ -156,15 +156,33 @@ async function processThread(thread: TrackedThread): Promise<void> {
   updateLastFollowupAt(thread.id);
 }
 
+// Caps how many threads are checked concurrently — enough to not scale
+// linearly with the number of tracked tickets, but bounded so a large
+// backlog doesn't fire a burst of simultaneous DevRev/Freshdesk/Slack/Claude
+// calls all at once.
+const CONCURRENT_THREAD_CHECKS = 5;
+
+async function processThreadSafely(thread: TrackedThread): Promise<void> {
+  try {
+    await processThread(thread);
+  } catch (err) {
+    console.error(`Failed to process thread ${thread.slackChannelId}/${thread.slackThreadTs}`, err);
+  }
+}
+
 export async function runDailyFollowup(): Promise<void> {
   const threads = listActive();
-  for (const thread of threads) {
-    try {
-      await processThread(thread);
-    } catch (err) {
-      console.error(`Failed to process thread ${thread.slackChannelId}/${thread.slackThreadTs}`, err);
+  const queue = [...threads];
+
+  async function worker(): Promise<void> {
+    let next: TrackedThread | undefined;
+    while ((next = queue.shift())) {
+      await processThreadSafely(next);
     }
   }
+
+  const workers = Array.from({ length: Math.min(CONCURRENT_THREAD_CHECKS, threads.length) }, worker);
+  await Promise.all(workers);
 }
 
 if (require.main === module) {
